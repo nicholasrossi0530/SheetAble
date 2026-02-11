@@ -68,83 +68,59 @@ function Sheet({
 
   useEffect(() => {
     // Change Page Title
-    document.title = `SheetAble - ${
-      sheet.sheet_name === undefined ? "Sheet" : sheet.sheet_name
-    }`;
+    if (sheet && sheet.sheet_name) {
+      document.title = `SheetAble - ${sheet.sheet_name}`;
+    } else {
+      document.title = `SheetAble - Sheet`;
+    }
 
     window.addEventListener("resize", updateMedia);
 
     return () => window.removeEventListener("resize", updateMedia);
-  });
+  }, [sheet]);
 
   let { safeSheetName, safeComposerName } = useParams();
 
-  const getSheetDataReq = async (_callback) => {
-    if (
-      sheetPage === undefined ||
-      sheetPages < 0 ||
-      sheetPages > totalSheetPages
-    ) {
-      setSheetPage(1);
-    }
-
-    const data = {
-      page: sheetPage,
-      sortBy: "updated_at desc",
-    };
-
-    if (sheetPages === undefined || sheetPages[sheetPage] === undefined) {
-      await getSheetPage(data, () => window.location.reload());
-    }
-  };
-
-  const getComposerDataReq = async (_callback) => {
-    if (
-      composerPage === undefined ||
-      composerPages < 0 ||
-      composerPages > totalComposerPages
-    ) {
-      setComposerPage(1);
-    }
-
-    const data = {
-      page: composerPage,
-      sortBy: "updated_at desc",
-    };
-
-    if (
-      composerPages === undefined ||
-      composerPages[composerPage] === undefined
-    ) {
-      await getComposerPage(data, () => window.location.reload());
-    }
-  };
-
   const [pdf, setpdf] = useState(undefined);
+  const [sheet, setSheet] = useState(undefined);
+  const [composer, setComposer] = useState(undefined);
+  const [loading, setLoading] = useState(true);
 
-  const bySheetPages = findSheetByPages(safeSheetName, sheetPages);
-  const bySheets = findSheetBySheets(safeSheetName, sheets);
+  useEffect(() => {
+    const foundSheet = findSheetByPages(safeSheetName, sheetPages) || findSheetBySheets(safeSheetName, sheets);
+    const foundComposer = findComposerByPages(safeComposerName, composerPages) || findComposerByComposers(safeComposerName, composers);
 
-  const [sheet] = useState(
-    bySheetPages === undefined
-      ? bySheets === undefined
-        ? getSheetDataReq()
-        : bySheets
-      : bySheetPages
-  );
+    if (foundSheet && foundComposer) {
+      setSheet(foundSheet);
+      setComposer(foundComposer);
+      setLoading(false);
+    } else {
+      // Data not in Redux yet, fetch it
+      fetchData();
+    }
+  }, [safeSheetName, safeComposerName, sheetPages, composerPages, sheets, composers]);
 
-  const byComposerPages = findComposerByPages(safeComposerName, composerPages);
-  const byComposers = findComposerByComposers(safeComposerName, composers);
+  const fetchData = async () => {
+    const sheetData = {
+      page: sheetPage || 1,
+      sortBy: "updated_at desc",
+    };
+    const composerData = {
+      page: composerPage || 1,
+      sortBy: "updated_at desc",
+    };
 
-  const [composer] = useState(
-    byComposerPages === undefined
-      ? byComposers === undefined
-        ? getComposerDataReq()
-        : byComposers
-      : byComposerPages
-  );
+    // If we don't have the pages, fetch them
+    if (sheetPages === undefined || sheetPages[sheetPage || 1] === undefined) {
+      await getSheetPage(sheetData, () => {});
+    }
+    if (composerPages === undefined || composerPages[composerPage || 1] === undefined) {
+      await getComposerPage(composerData, () => {});
+    }
+  };
 
   const pdfRequest = () => {
+    if (!safeComposerName || !safeSheetName) return;
     axios
       .get(`/sheet/pdf/${safeComposerName}/${safeSheetName}`, {
         responseType: "arraybuffer",
@@ -153,11 +129,11 @@ function Sheet({
         setpdf(res);
       })
       .catch((err) => {
-        if (err.request.status === 401) {
+        if (err.response && err.response.status === 401) {
           store.dispatch(logoutUser());
           window.location.href = "/login";
         }
-        if (err.request.status === 404) {
+        if (err.response && err.response.status === 404) {
           window.location.href = "/";
         }
       });
@@ -214,9 +190,17 @@ function Sheet({
 
   const [editModal, setEditModal] = useState(false);
 
-  if (composer.portrait_url === undefined) {
-    window.location.replace("/");
+  if (loading || !sheet || !composer) {
+    return (
+      <Fragment>
+        <SideBar />
+        <div className="home_content">
+          <h1>Loading...</h1>
+        </div>
+      </Fragment>
+    );
   }
+
   const imgUrl = getCompImgUrl(composer.portrait_url);
 
   return (
