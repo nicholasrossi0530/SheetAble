@@ -22,9 +22,10 @@ type FileInfo struct {
 	Title        string
 	SafeTitle    string
 	Hash         string
+	Extension    string
 }
 
-// ScanDirectory recursively walks a directory tree and discovers PDF files
+// ScanDirectory recursively walks a directory tree and discovers Sheet files
 func ScanDirectory(rootPath string) ([]FileInfo, error) {
 	var files []FileInfo
 
@@ -47,8 +48,8 @@ func ScanDirectory(rootPath string) ([]FileInfo, error) {
 			return nil
 		}
 
-		// Check if it's a PDF file
-		if !IsPDFFile(path) {
+		// Check if it's a supported file
+		if !IsSupportedFile(path) {
 			return nil
 		}
 
@@ -66,13 +67,13 @@ func ScanDirectory(rootPath string) ([]FileInfo, error) {
 	return files, err
 }
 
-// IsPDFFile checks if a file is a PDF based on extension
-func IsPDFFile(path string) bool {
+// IsSupportedFile checks if a file is a supported sheet music format
+func IsSupportedFile(path string) bool {
 	ext := strings.ToLower(filepath.Ext(path))
-	return ext == ".pdf"
+	return ext == ".pdf" || ext == ".xml" || ext == ".mxl" || ext == ".musicxml"
 }
 
-// ExtractMetadata extracts metadata from a PDF file
+// ExtractMetadata extracts metadata from a file
 func ExtractMetadata(path string) (FileInfo, error) {
 	fileInfo := FileInfo{
 		Path:     path,
@@ -92,6 +93,7 @@ func ExtractMetadata(path string) (FileInfo, error) {
 	fileInfo.Title = title
 	fileInfo.SafeComposer = sanitize.Name(Unidecode(composer))
 	fileInfo.SafeTitle = sanitize.Name(Unidecode(title))
+	fileInfo.Extension = strings.ToLower(filepath.Ext(path))
 
 	return fileInfo, nil
 }

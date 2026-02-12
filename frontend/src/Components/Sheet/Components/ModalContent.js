@@ -30,7 +30,7 @@ function ModalContent(props) {
     releaseDate: "1999-12-31",
   });
 
-  const [pdfChange, setPdfChange] = useState(false);
+  const [fileChange, setFileChange] = useState(false);
 
   const [uploadFile, setUploadFile] = useState(null);
 
@@ -41,16 +41,16 @@ function ModalContent(props) {
     
     const isMetadataValid = requestData.composer !== "" && requestData.sheetName !== "";
 
-    if ((hasMetadataChanged || pdfChange) && isMetadataValid) {
+    if ((hasMetadataChanged || fileChange) && isMetadataValid) {
       setDisabled(false);
     } else {
       setDisabled(true);
     }
-  }, [requestData, pdfChange]);
+  }, [requestData, fileChange]);
 
   useEffect(() => {
     if (uploadFile) {
-      setPdfChange(true);
+      setFileChange(true);
     }
   }, [uploadFile]);
 
@@ -137,7 +137,17 @@ function ModalContent(props) {
           labelIdle='Drag & Drop your files or <span class="filepond--label-action">Browse</span>'
           credits={false}
           allowFileTypeValidation={true}
-          acceptedFileTypes={["application/pdf"]}
+          acceptedFileTypes={[
+            ".pdf",
+            ".xml",
+            ".mxl",
+            ".musicxml",
+            "application/pdf",
+            "application/xml",
+            "text/xml",
+            "application/vnd.recordare.musicxml+xml",
+            "application/vnd.recordare.musicxml",
+          ]}
         />
       </div>
       <div className="delete-wrapper">

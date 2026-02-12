@@ -16,15 +16,38 @@ import { uploadSheet } from "../../Redux/Actions/dataActions";
 
 registerPlugin(FilePondPluginFileValidateType);
 
-function DragNDrop({ giveModalData }) {
+function DragNDrop({
+  giveModalData,
+  requestData,
+  uploadSheet,
+  secondButtonOnClick,
+}) {
   //const [files, setFiles] = useState(undefined)
 
   const uploadFinish = (files) => {
-    giveModalData(files[0].file);
+    if (files.length > 0) {
+      const file = files[0].file;
+      // Modal context
+      if (giveModalData) {
+        giveModalData(file);
+      }
+
+      // UploadPage context
+      if (secondButtonOnClick && requestData) {
+        const data = {
+          ...requestData,
+          uploadFile: file,
+        };
+
+        uploadSheet(data, () => {
+          secondButtonOnClick({ preventDefault: () => {} });
+        });
+      }
+    }
   };
 
   const removeFile = () => {
-    giveModalData(undefined);
+    if (giveModalData) giveModalData(undefined);
   };
 
   return (
@@ -54,8 +77,18 @@ function DragNDrop({ giveModalData }) {
         name="files"
         labelIdle='Drag & Drop your file or <span class="filepond--label-action">Browse</span>'
         credits={false}
-        allowFileTypeValidation={true}
-        acceptedFileTypes={["application/pdf"]}
+        allowFileTypeValidation={false}
+        acceptedFileTypes={[
+          ".pdf",
+          ".xml",
+          ".mxl",
+          ".musicxml",
+          "application/pdf",
+          "application/xml",
+          "text/xml",
+          "application/vnd.recordare.musicxml+xml",
+          "application/vnd.recordare.musicxml",
+        ]}
       />
     </div>
   );

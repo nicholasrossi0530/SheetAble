@@ -74,7 +74,7 @@ func (c *Composer) UpdateComposer(db *gorm.DB, originalName string, updatedName 
 	db.Save(&composer)
 
 	// Update Sheets with that composer
-	db.Exec("UPDATE sheets SET pdf_url = REPLACE(pdf_url, ?, ?) WHERE safe_composer = ?;", originalName, sanitize.Name(updatedName), originalName)
+	db.Exec("UPDATE sheets SET file_url = REPLACE(file_url, ?, ?) WHERE safe_composer = ?;", originalName, sanitize.Name(updatedName), originalName)
 	db.Model(&Sheet{}).Where("safe_composer = ?", originalName).Update("safe_composer", sanitize.Name(updatedName))
 	db.Model(&Sheet{}).Where("safe_composer = ?", sanitize.Name(updatedName)).Update("composer", updatedName)
 	// Rename folder
@@ -110,7 +110,7 @@ func (c *Composer) DeleteComposer(db *gorm.DB, composerName string) (int64, erro
 	// Swap sheets composer to Unknown
 	db.Exec("UPDATE 'sheets' SET 'composer' = 'Unknown' WHERE (safe_composer = ?);", composerName)
 	db.Exec("UPDATE 'sheets' SET 'safe_composer' = 'unknown' WHERE (composer = ?);", "Unknown")
-	db.Exec("UPDATE sheets s JOIN (SELECT id, pdf_url, LOCATE(?, pdf_url) AS pos FROM sheets WHERE safe_composer = ? LIMIT 1) t ON s.id = t.id SET s.pdf_url = CONCAT(SUBSTRING(s.pdf_url, 1, t.pos - 1), 'unknown', SUBSTRING(s.pdf_url, t.pos + CHAR_LENGTH(?)))", composerName, composerName, composerName)
+	db.Exec("UPDATE sheets s JOIN (SELECT id, file_url, LOCATE(?, file_url) AS pos FROM sheets WHERE safe_composer = ? LIMIT 1) t ON s.id = t.id SET s.file_url = CONCAT(SUBSTRING(s.file_url, 1, t.pos - 1), 'unknown', SUBSTRING(s.file_url, t.pos + CHAR_LENGTH(?)))", composerName, composerName, composerName)
 
 	confPath := path.Join(Config().ConfigPath, "sheets/uploaded-sheets/")
 
@@ -122,9 +122,9 @@ func (c *Composer) DeleteComposer(db *gorm.DB, composerName string) (int64, erro
 			}
 			if !info.IsDir() {
 
-				pdfName := strings.Split(path, composerName)
+				fileName := strings.Split(path, composerName)
 
-				os.Rename(path, confPath+"/"+"unknown"+pdfName[1])
+				os.Rename(path, confPath+"/"+"unknown"+fileName[1])
 			}
 			return nil
 		})

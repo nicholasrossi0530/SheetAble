@@ -45,7 +45,7 @@ func (server *Server) SetupRouter() {
 	secureApi.GET("/sheets", server.GetSheetsPage)
 	secureApi.POST("/sheets", server.GetSheetsPage)
 	api.GET("/sheet/thumbnail/:name", server.GetThumbnail)
-	secureApi.GET("/sheet/pdf/:composer/:sheetName", server.GetPDF)
+	secureApi.GET("/sheet/file/:composer/:sheetName", server.GetSheetFile)
 	secureApi.GET("/sheet/:sheetName", server.GetSheet)
 	secureApi.PUT("/sheet/:sheetName", server.UpdateSheet)
 	secureApi.DELETE("/sheet/:sheetName", server.DeleteSheet)
@@ -65,6 +65,7 @@ func (server *Server) SetupRouter() {
 	// Composer routes
 	secureApi.GET("/composers", server.GetComposersPage)
 	secureApi.POST("/composers", server.GetComposersPage)
+	secureApi.GET("/composer/:composerName", server.GetComposer)
 	secureApi.PUT("/composer/:composerName", server.UpdateComposer)
 	secureApi.DELETE("/composer/:composerName", server.DeleteComposer)
 	api.GET("/composer/portrait/:composerName", server.ServePortraits)

@@ -72,7 +72,7 @@ func SyncLibrary(db *gorm.DB, libraryPath string) error {
 		statusMutex.Unlock()
 	}()
 
-	// Discover all PDF files
+	// Discover all Sheet files
 	files, err := scanner.DiscoverFiles(libraryPath)
 	if err != nil {
 		return err
@@ -150,6 +150,9 @@ func ImportFile(db *gorm.DB, fileInfo scanner.FileInfo) (bool, error) {
 				needsUpdate = true
 				hashChanged = true
 			}
+			if existingSheet.Extension != fileInfo.Extension {
+				needsUpdate = true
+			}
 			if !existingSheet.IsAvailable {
 				needsUpdate = true
 			}
@@ -157,12 +160,14 @@ func ImportFile(db *gorm.DB, fileInfo scanner.FileInfo) (bool, error) {
 			if needsUpdate {
 				existingSheet.FilePath = fileInfo.Path
 				existingSheet.FileHash = fileInfo.Hash
+				existingSheet.Extension = fileInfo.Extension
 				existingSheet.IsAvailable = true
 				existingSheet.UpdatedAt = time.Now()
 
 				err := tx.Model(&existingSheet).Updates(map[string]interface{}{
 					"file_path":    fileInfo.Path,
 					"file_hash":    fileInfo.Hash,
+					"extension":    fileInfo.Extension,
 					"is_available": true,
 					"updated_at":   time.Now(),
 				}).Error
@@ -221,6 +226,7 @@ func ImportFile(db *gorm.DB, fileInfo scanner.FileInfo) (bool, error) {
 		IsAvailable:     true,
 		Source:          "synced",
 		InformationText: fmt.Sprintf("Synced from library: %s", filepath.Dir(fileInfo.Path)),
+		Extension:       fileInfo.Extension,
 	}
 	sheet.Prepare()
 
@@ -246,7 +252,11 @@ func ImportFile(db *gorm.DB, fileInfo scanner.FileInfo) (bool, error) {
 
 	// Generate thumbnail (outside transaction) using local processing
 	var thumbErr error
-	symlinkPath := path.Join(cfg.ConfigPath, "sheets/uploaded-sheets", sheet.SafeComposer, sheet.SafeSheetName+".pdf")
+	ext := sheet.Extension
+	if ext == "" {
+		ext = ".pdf"
+	}
+	symlinkPath := path.Join(cfg.ConfigPath, "sheets/uploaded-sheets", sheet.SafeComposer, sheet.SafeSheetName+ext)
 	if cfg.OrganizeMode && fileExists(symlinkPath) {
 		thumbErr = utils.GenerateThumbnailLocal(symlinkPath, sheet.SafeSheetName)
 	} else {
@@ -300,7 +310,11 @@ func CreateSymlink(db *gorm.DB, sheet *models.Sheet) error {
 	utils.CreateDir(targetDir)
 
 	// Create symlink path
-	symlinkPath := path.Join(targetDir, sheet.SafeSheetName+".pdf")
+	ext := sheet.Extension
+	if ext == "" {
+		ext = ".pdf"
+	}
+	symlinkPath := path.Join(targetDir, sheet.SafeSheetName+ext)
 
 	// Remove existing symlink if it exists
 	if _, err := os.Lstat(symlinkPath); err == nil {
@@ -327,7 +341,11 @@ func CleanupSymlinks(db *gorm.DB) error {
 	cfg := config.Config()
 
 	for _, sheet := range syncedSheets {
-		symlinkPath := path.Join(cfg.ConfigPath, "sheets/uploaded-sheets", sheet.SafeComposer, sheet.SafeSheetName+".pdf")
+		ext := sheet.Extension
+		if ext == "" {
+			ext = ".pdf"
+		}
+		symlinkPath := path.Join(cfg.ConfigPath, "sheets/uploaded-sheets", sheet.SafeComposer, sheet.SafeSheetName+ext)
 		if _, err := os.Lstat(symlinkPath); err == nil {
 			// Check if it's a symlink
 			fileInfo, err := os.Lstat(symlinkPath)

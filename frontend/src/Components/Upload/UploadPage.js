@@ -105,7 +105,7 @@ const InteractiveForm = () => {
               </button>
             </form>
             <form class="slider-form slider-two">
-              <h2>Upload the PDF</h2>
+              <h2>Upload the File (PDF, MusicXML, MXL)</h2>
               <DragNDrop
                 requestData={requestData}
                 secondButtonOnClick={secondButtonOnClick}

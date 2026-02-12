@@ -13,8 +13,6 @@
 .react-pdf__Page__canvas {
   box-shadow: 0 2px 5px 0 rgba(0, 0, 0, 0.2), 0 6px 20px 0 rgba(0, 0, 0, 0.19);
   border-radius: 15px;
-  width: 360px;
-  height: 509px;
 }
 
 .docu_sep {
@@ -25,6 +23,7 @@
 .document {
   margin-left: 20px;
   margin-top: 12px;
+  padding-bottom: 60px; /* Add breathing room at the bottom */
 }
 
 .doc_wrapper:hover .page_controls {
@@ -71,6 +70,7 @@
 .page_controls button {
   appearance: auto;
   -webkit-writing-mode: horizontal-tb !important;
+  writing-mode: horizontal-tb !important;
   text-rendering: auto;
   letter-spacing: normal;
   word-spacing: normal;
@@ -238,12 +238,6 @@
   color: black;
 }
 
-@media screen and (min-height: 840px) {
-  .page_controls {
-    margin-left: 283px;
-  }
-}
-
 .sep_video {
   margin-top: 463px;
   margin-left: 6vw;
@@ -257,12 +251,13 @@
 }
 
 .react-pdf__Page__canvas {
-  height: 608px !important;
+  box-shadow: 0 2px 5px 0 rgba(0, 0, 0, 0.2), 0 6px 20px 0 rgba(0, 0, 0, 0.19);
+  border-radius: 15px;
 }
 
 @media screen and (min-height: 840px) {
-  .react-pdf__Page__canvas {
-    height: 765px !important;
+  .page_controls {
+    margin-left: 350px; /* Adjusted for wider sheet */
   }
 }
 
@@ -285,4 +280,16 @@
 .delete-wrapper
   button.MuiButtonBase-root.MuiButton-root.MuiButton-contained.MuiButton-containedPrimary {
   display: inline-block;
+}
+
+.pdf-page-full {
+  margin: 0 !important;
+  display: flex !important;
+  justify-content: center !important;
+  align-items: center !important;
+}
+
+.pdf-page-full canvas {
+  max-height: calc(100vh - 40px) !important;
+  width: auto !important;
 }

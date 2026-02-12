@@ -20,17 +20,18 @@ type Sheet struct {
 	SafeComposer    string `json:"safe_composer"`
 	Composer        string `json:"composer"`
 	ReleaseDate     time.Time
-	PdfUrl          string         `json:"pdf_url"`
+	FileUrl         string         `json:"file_url"`
 	UploaderID      uint32         `gorm:"not null" json:"uploader_id"`
 	CreatedAt       time.Time      `gorm:"default:CURRENT_TIMESTAMP" json:"created_at"`
 	UpdatedAt       time.Time      `gorm:"default:CURRENT_TIMESTAMP" json:"updated_at"`
 	Tags            pq.StringArray `gorm:"type:text[]" json:"tags"`
 	InformationText string         `json:"information_text"`
 	// Library sync fields
-	FilePath    string `json:"file_path"`                        // Absolute path to PDF file (for synced files)
+	FilePath    string `json:"file_path"`                        // Absolute path to Sheet file (for synced files)
 	FileHash    string `json:"file_hash"`                        // SHA256 hash for duplicate detection
 	IsAvailable bool   `gorm:"default:true" json:"is_available"` // Whether file exists
 	Source      string `gorm:"default:'uploaded'" json:"source"` // "uploaded" or "synced"
+	Extension   string `gorm:"default:'.pdf'" json:"extension"`  // File extension (.pdf, .xml, .mxl, .musicxml)
 }
 
 func (s *Sheet) Prepare() {
@@ -40,7 +41,11 @@ func (s *Sheet) Prepare() {
 	s.SafeSheetName = strings.TrimSpace(s.SafeSheetName)
 	s.CreatedAt = time.Now()
 	s.UpdatedAt = time.Now()
-	s.PdfUrl = "sheet/pdf/" + s.SafeComposer + "/" + s.SafeSheetName
+	// Default extension if missing
+	if s.Extension == "" {
+		s.Extension = ".pdf"
+	}
+	s.FileUrl = "sheet/file/" + s.SafeComposer + "/" + s.SafeSheetName
 	s.Tags = pq.StringArray{}
 	// Set default source if not specified
 	if s.Source == "" {
@@ -71,7 +76,7 @@ func (s *Sheet) DeleteSheet(db *gorm.DB, sheetName string) (int64, error) {
 	}
 
 	paths := []string{
-		path.Join(Config().ConfigPath, "sheets/uploaded-sheets", sheet.SafeComposer, sheet.SafeSheetName+".pdf"),
+		path.Join(Config().ConfigPath, "sheets/uploaded-sheets", sheet.SafeComposer, sheet.SafeSheetName+sheet.Extension),
 		path.Join(Config().ConfigPath, "sheets/thumbnails", sheet.SafeSheetName+".png"),
 	}
 

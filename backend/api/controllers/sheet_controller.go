@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"path"
+	"strings"
 
 	"github.com/SheetAble/SheetAble/backend/api/auth"
 	. "github.com/SheetAble/SheetAble/backend/api/config"
@@ -52,7 +53,7 @@ func (server *Server) GetSheetsPage(c *gin.Context) {
 }
 
 /*
-Get PDF file and information about an individual sheet.
+Get Sheet file and information about an individual sheet.
 Example request:
 
 	GET /sheet/Étude N. 1
@@ -76,44 +77,85 @@ func (server *Server) GetSheet(c *gin.Context) {
 }
 
 /*
-Serve the PDF file
+Serve the Sheet file
 Example request:
 
-	GET /sheet/pdf/Frédéric Chopin/Étude N. 1
+	GET /sheet/file/Frédéric Chopin/Étude N. 1
 
 sheetname and composer name have to be the safeName of them
 */
-// GetPDF serves the PDF file for a given sheet.
+// GetSheetFile serves the Sheet file for a given sheet.
 // It prioritizes the stored FilePath (for both synced and uploaded files)
 // and falls back to the organized directory structure if necessary.
-func (server *Server) GetPDF(c *gin.Context) {
+func (server *Server) GetSheetFile(c *gin.Context) {
 	sheetName := c.Param("sheetName")
 	composer := c.Param("composer")
 
 	var sheet models.Sheet
+	// Try exact match first
 	err := server.DB.Where("safe_sheet_name = ? AND safe_composer = ?", sheetName, composer).First(&sheet).Error
+
+	actualSheetName := sheetName
+	// If not found, try stripping known extensions to find the record
+	if err != nil {
+		extensions := []string{".pdf", ".xml", ".mxl", ".musicxml"}
+		for _, e := range extensions {
+			if strings.HasSuffix(strings.ToLower(sheetName), e) {
+				stripped := sheetName[:len(sheetName)-len(e)]
+				err = server.DB.Where("safe_sheet_name = ? AND safe_composer = ?", stripped, composer).First(&sheet).Error
+				if err == nil {
+					actualSheetName = stripped
+					break
+				}
+			}
+		}
+	}
 
 	if err == nil && sheet.Source == "synced" && sheet.FilePath != "" {
 		if _, err := os.Stat(sheet.FilePath); err == nil {
+			// Set Content-Type for synced files too
+			switch sheet.Extension {
+			case ".pdf":
+				c.Header("Content-Type", "application/pdf")
+			case ".xml", ".musicxml":
+				c.Header("Content-Type", "application/vnd.recordare.musicxml+xml")
+			case ".mxl":
+				c.Header("Content-Type", "application/vnd.recordare.musicxml")
+			}
 			c.File(sheet.FilePath)
 			return
 		}
 	}
 
 	// Fallback to the organized/uploaded path
-	filePath := path.Join(Config().ConfigPath, "sheets/uploaded-sheets", composer, sheetName+".pdf")
+	ext := sheet.Extension
+	if ext == "" {
+		ext = ".pdf"
+	}
+
+	// Set Content-Type based on extension
+	switch ext {
+	case ".pdf":
+		c.Header("Content-Type", "application/pdf")
+	case ".xml", ".musicxml":
+		c.Header("Content-Type", "application/vnd.recordare.musicxml+xml")
+	case ".mxl":
+		c.Header("Content-Type", "application/vnd.recordare.musicxml")
+	}
+
+	// Use actualSheetName (without the extension from the URL if it was stripped)
+	filePath := path.Join(Config().ConfigPath, "sheets/uploaded-sheets", composer, actualSheetName+ext)
 	c.File(filePath)
 }
 
-/*
-Serve the thumbnail file
-name = safename of sheet
-*/
+// Serve the thumbnail file
+// name = safename of sheet
 func (server *Server) GetThumbnail(c *gin.Context) {
 	name := c.Param("name") + ".png"
 	filePath := path.Join(Config().ConfigPath, "sheets/thumbnails", name)
 
-	if _, err := os.Stat(filePath); os.IsNotExist(err) {
+	info, err := os.Stat(filePath)
+	if os.IsNotExist(err) || (err == nil && info.Size() == 0) {
 		c.Status(http.StatusNotFound)
 		return
 	}

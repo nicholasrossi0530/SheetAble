@@ -15,7 +15,7 @@ function Sheets(props) {
       <li
         key={sheet.sheet_name}
         onClick={() =>
-          history.push(`sheet/${sheet.pdf_url.split("pdf/").pop()}`)
+          history.push(`sheet/${sheet.file_url.split("file/").pop()}`)
         }
       >
         <div className="box-container remove_shadow">

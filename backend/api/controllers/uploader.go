@@ -1,9 +1,3 @@
-/*
-	This file is for handeling the basic upload of sheets.
-	It will upload given file in the uploaded sheets folder either under
-	the unknown subfolder or under the author's name subfolder, depending on whether an author is given or not.
-*/
-
 package controllers
 
 import (
@@ -13,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"path"
+	"strings"
 	"time"
 
 	"github.com/SheetAble/SheetAble/backend/api/auth"
@@ -71,8 +66,12 @@ func (server *Server) UploadFile(c *gin.Context) {
 	// Check if the file already exists
 	sheetName := uploadForm.SheetName
 	releaseDate := uploadForm.ReleaseDate
+	extension := strings.ToLower(path.Ext(uploadForm.File.Filename))
+	if extension == "" {
+		extension = ".pdf" // Default fallback
+	}
 
-	fullpath, err := checkFile(uploadPath, sheetName)
+	fullpath, err := checkFile(uploadPath, sheetName, extension)
 	if fullpath == "" || err != nil {
 		return
 	}
@@ -84,7 +83,8 @@ func (server *Server) UploadFile(c *gin.Context) {
 		return
 	}
 	defer theFile.Close()
-	err = createFile(uid, server, fullpath, theFile, comp, sheetName, releaseDate, uploadForm.InformationText)
+	defer theFile.Close()
+	err = createFile(uid, server, fullpath, theFile, comp, sheetName, releaseDate, uploadForm.InformationText, extension)
 	if err != nil {
 		c.String(http.StatusInternalServerError, err.Error())
 		return
@@ -163,7 +163,11 @@ func (server *Server) UpdateSheet(c *gin.Context) {
 	oldPath := oldSheet.FilePath
 	if oldPath == "" && oldSheet.Source == "uploaded" {
 		// Fallback for older records without FilePath
-		oldPath = path.Join(Config().ConfigPath, "sheets/uploaded-sheets", oldSheet.SafeComposer, oldSheet.SafeSheetName+".pdf")
+		ext := oldSheet.Extension
+		if ext == "" {
+			ext = ".pdf"
+		}
+		oldPath = path.Join(Config().ConfigPath, "sheets/uploaded-sheets", oldSheet.SafeComposer, oldSheet.SafeSheetName+ext)
 	}
 	newPath := oldPath
 
@@ -173,10 +177,17 @@ func (server *Server) UpdateSheet(c *gin.Context) {
 	// - It's already an uploaded file (so we can handle renames/composer changes in managed storage)
 	// - A new file was uploaded (converting it to an uploaded file)
 	needsMove := oldSheet.Source == "uploaded" || uploadForm.File != nil
+
+	// Determine new extension
+	newExtension := oldSheet.Extension
+	if uploadForm.File != nil {
+		newExtension = strings.ToLower(path.Ext(uploadForm.File.Filename))
+	}
+
 	if needsMove {
 		uploadDir := path.Join(Config().ConfigPath, "sheets/uploaded-sheets", newSafeComposer)
 		utils.CreateDir(uploadDir)
-		newPath = path.Join(uploadDir, newSafeName+".pdf")
+		newPath = path.Join(uploadDir, newSafeName+newExtension)
 	}
 
 	// 1. If a new file is uploaded, use it
@@ -235,6 +246,7 @@ func (server *Server) UpdateSheet(c *gin.Context) {
 	newSheet.SafeComposer = newSafeComposer
 	newSheet.Composer = newComposerName
 	newSheet.FilePath = newPath
+	newSheet.Extension = newExtension
 	// If it was synced but now moved to our data folder or replaced, it is now an "uploaded" source
 	if uploadForm.File != nil || newPath != oldPath {
 		newSheet.Source = "uploaded"
@@ -246,7 +258,7 @@ func (server *Server) UpdateSheet(c *gin.Context) {
 		newSheet.ReleaseDate = createDate(uploadForm.ReleaseDate)
 	}
 	newSheet.UpdatedAt = time.Now()
-	newSheet.PdfUrl = "sheet/pdf/" + newSafeComposer + "/" + newSafeName
+	newSheet.FileUrl = "sheet/file/" + newSafeComposer + "/" + newSafeName
 
 	// Save (will create if newSafeName changed and old was deleted, or update otherwise)
 	if err := tx.Save(&newSheet).Error; err != nil {
@@ -281,7 +293,7 @@ func checkComposer(path string, comp utils.Comp) (string, error) {
 }
 
 // createFile saves the file to disk and creates the corresponding database entry.
-func createFile(uid uint32, server *Server, fullpath string, file multipart.File, comp utils.Comp, sheetName string, releaseDate string, informationText string) error {
+func createFile(uid uint32, server *Server, fullpath string, file multipart.File, comp utils.Comp, sheetName string, releaseDate string, informationText string, extension string) error {
 	// Create database entry
 	sheet := models.Sheet{
 		SafeSheetName:   sanitize.Name(Unidecode(sheetName)),
@@ -294,6 +306,7 @@ func createFile(uid uint32, server *Server, fullpath string, file multipart.File
 		FilePath:        fullpath, // Store the absolute path for consistency
 		Source:          "uploaded",
 		IsAvailable:     true,
+		Extension:       extension,
 	}
 	sheet.Prepare()
 
@@ -316,9 +329,9 @@ func createDate(date string) time.Time {
 	return t
 }
 
-func checkFile(pathName string, sheetName string) (string, error) {
+func checkFile(pathName string, sheetName string, extension string) (string, error) {
 	// Check if the file already exists
-	fullpath := fmt.Sprintf("%s/%s.pdf", pathName, sanitize.Name(Unidecode(sheetName)))
+	fullpath := fmt.Sprintf("%s/%s%s", pathName, sanitize.Name(Unidecode(sheetName)), extension)
 	if _, err := os.Stat(fullpath); err == nil {
 		return "", errors.New("file already exists")
 	}

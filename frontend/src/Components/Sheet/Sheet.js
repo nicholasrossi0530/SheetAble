@@ -2,7 +2,7 @@
 	This file needs to be rewritten soon due to being not properly readable anymore
 */
 
-import React, { useEffect, useState, Fragment } from "react";
+import React, { Fragment, useEffect, useState, useRef } from "react";
 import { useParams } from "react-router-dom";
 
 import { Document, pdfjs, Page } from "react-pdf";
@@ -37,6 +37,7 @@ import { useHistory } from "react-router-dom";
 import Modal from "../Sidebar/Modal/Modal";
 import ModalContent from "./Components/ModalContent";
 import InformationCard from "./Components/InformationCard";
+import MusicXMLDisplay from "./Components/MusicXMLDisplay";
 
 /* Activate global worker for displaying the pdf properly */
 pdfjs.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.js`;
@@ -58,17 +59,18 @@ function Sheet({
   /* PDF Page width rendering */
   const windowHeight = 840;
 
-  const [pdf, setpdf] = useState(undefined);
+  const [fileData, setFileData] = useState(undefined);
   const [sheet, setSheet] = useState(undefined);
   const [composer, setComposer] = useState(undefined);
   const [loading, setLoading] = useState(true);
   const [isDesktop, setDesktop] = useState(window.innerHeight > windowHeight);
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const [numPages, setNumPages] = useState(null);
   const [pageNumber, setPageNumber] = useState(1);
 
   const updateMedia = () => {
-    const nextDesktop = window.innerHeight > windowHeight;
-    setDesktop(nextDesktop);
+    setDesktop(window.innerHeight > windowHeight);
+    setIsMobile(window.innerWidth < 768);
   };
 
   useEffect(() => {
@@ -98,35 +100,32 @@ function Sheet({
       // Data not in Redux yet, fetch it
       fetchData();
     }
-  }, [safeSheetName, safeComposerName, sheetPages, composerPages, sheets, composers]);
+  }, [safeSheetName, safeComposerName, sheetPages, sheets, composerPages, composers]);
 
-  const fetchData = async () => {
-    const sheetData = {
-      page: sheetPage || 1,
-      sortBy: "updated_at desc",
-    };
-    const composerData = {
-      page: composerPage || 1,
-      sortBy: "updated_at desc",
-    };
-
-    // If we don't have the pages, fetch them
-    if (sheetPages === undefined || sheetPages[sheetPage || 1] === undefined) {
-      await getSheetPage(sheetData, () => {});
-    }
-    if (composerPages === undefined || composerPages[composerPage || 1] === undefined) {
-      await getComposerPage(composerData, () => {});
-    }
+  const fetchData = () => {
+    axios
+      .get(`/sheet/${safeSheetName}`)
+      .then((res) => {
+        setSheet(res.data);
+        return axios.get(`/composer/${safeComposerName}`);
+      })
+      .then((res) => {
+        setComposer(res.data);
+        setLoading(false);
+      })
+      .catch((err) => {
+        console.error("Failed to fetch data:", err);
+      });
   };
 
-  const pdfRequest = () => {
+  const fileRequest = () => {
     if (!safeComposerName || !safeSheetName) return;
     axios
-      .get(`/sheet/pdf/${safeComposerName}/${safeSheetName}`, {
+      .get(`/sheet/file/${safeComposerName}/${safeSheetName}`, {
         responseType: "arraybuffer",
       })
       .then((res) => {
-        setpdf(res);
+        setFileData(res);
       })
       .catch((err) => {
         if (err.response && err.response.status === 401) {
@@ -137,10 +136,8 @@ function Sheet({
           window.location.href = "/";
         }
       });
-    return pdf;
+    return fileData;
   };
-
-
 
   function onDocumentLoadSuccess({ numPages }) {
     setNumPages(numPages);
@@ -161,17 +158,73 @@ function Sheet({
     changePage(1);
   }
 
+  const documentRef = useRef(null);
+
+  const [isFullScreen, setIsFullScreen] = useState(false);
+
+  const toggleFullScreen = () => {
+    setIsFullScreen(!isFullScreen);
+  };
+
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (!isFullScreen) return;
+      
+      if (e.key === 'Escape') {
+        setIsFullScreen(false);
+      } else if (e.key === 'ArrowRight') {
+        if (documentRef.current) {
+          documentRef.current.scrollBy({ left: window.innerWidth * 0.45, behavior: 'smooth' });
+        }
+      } else if (e.key === 'ArrowLeft') {
+         if (documentRef.current) {
+          documentRef.current.scrollBy({ left: -(window.innerWidth * 0.45), behavior: 'smooth' });
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isFullScreen]);
+
+  const fullScreenStyles = {
+    position: 'fixed',
+    top: 0,
+    left: 0,
+    width: '100vw',
+    minWidth: '100vw',
+    height: '100vh',
+    zIndex: 9999,
+    backgroundColor: '#333',
+    display: 'flex',
+    flexDirection: isMobile ? 'column' : 'row',
+    alignItems: 'center',
+    overflowX: isMobile ? 'hidden' : 'auto',
+    overflowY: isMobile ? 'auto' : 'hidden', // Lock vertical on desktop
+    padding: isMobile ? '20px' : '0 20px', 
+  };
+
   let history = useHistory();
 
-  const [pdfDownloadData, setPdfDownloadData] = useState({
+  const [fileDownloadData, setFileDownloadData] = useState({
     link: "",
     name: "",
   });
 
+  // Helper to check extension
+  const isMusicXml = (sheet) => {
+      if (!sheet || !sheet.extension) return false;
+      const ext = sheet.extension.toLowerCase();
+      return ext === '.xml' || ext === '.mxl' || ext === '.musicxml';
+  }
+
   function saveByteArray(reportName, byte) {
-    var blob = new Blob([byte], { type: "application/pdf" });
-    setPdfDownloadData({
-      ...pdfDownloadData,
+    const type = isMusicXml(sheet) ? "text/xml" : "application/pdf";
+    var blob = new Blob([byte], { type: type });
+    setFileDownloadData({
+      ...fileDownloadData,
       link: window.URL.createObjectURL(blob),
       name: reportName,
     });
@@ -215,14 +268,90 @@ function Sheet({
             </div>
 
             <div className="noselect document">
-              <Document
-                file={pdf === undefined ? pdfRequest() : pdf}
-                onLoadSuccess={onDocumentLoadSuccess}
-              >
-                <Page pageNumber={pageNumber} width={isDesktop ? 540 : 430} />
-              </Document>
+              {sheet && isMusicXml(sheet) ? (
+                 <MusicXMLDisplay 
+                    fileUrl={`/sheet/file/${safeComposerName}/${safeSheetName}${sheet.extension}`}
+                    fileName={sheet.sheet_name}
+                    width={isDesktop ? 750 : 550}
+                 />
+              ) : (
+                  <div ref={documentRef} style={isFullScreen ? { ...fullScreenStyles } : { position: 'relative' }}>
+                    <button 
+                      onClick={toggleFullScreen}
+                      style={isFullScreen ? {
+                        position: 'fixed',
+                        top: '20px',
+                        right: '20px',
+                        zIndex: 10000,
+                        background: 'rgba(0,0,0,0.5)',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '5px',
+                        padding: '5px 10px',
+                        cursor: 'pointer'
+                      } : {
+                        position: 'absolute',
+                        top: '10px',
+                        right: '40px',
+                        zIndex: 10000,
+                        background: 'rgba(0,0,0,0.5)',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '5px',
+                        padding: '5px 10px',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      ⛶
+                    </button>
+                    <Document
+                      file={fileData === undefined ? fileRequest() : fileData}
+                      onLoadSuccess={onDocumentLoadSuccess}
+                    >
+                      {isFullScreen ? (
+                        <div style={{ 
+                          display: 'flex', 
+                          flexDirection: isMobile ? 'column' : 'row', 
+                          height: '100%', 
+                          minWidth: isMobile ? '100%' : 'min-content',
+                          justifyContent: isMobile ? 'flex-start' : 'center',
+                          alignItems: 'center'
+                        }}>
+                          {Array.from(new Array(numPages), (el, index) => (
+                            <div 
+                              key={`page_${index + 1}`} 
+                              style={{ 
+                                marginRight: isMobile ? '0' : '20px', 
+                                marginBottom: isMobile ? '20px' : '0',
+                                display: 'flex', 
+                                flexShrink: 0, 
+                                justifyContent: 'center', 
+                                alignItems: 'center' 
+                              }}
+                            >
+                              <Page 
+                                pageNumber={index + 1} 
+                                height={!isMobile ? window.innerHeight - 40 : undefined}
+                                width={isMobile ? window.innerWidth * 0.9 : undefined} 
+                                renderAnnotationLayer={false}
+                                className="pdf-page-full"
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <Page 
+                          pageNumber={pageNumber} 
+                          width={isDesktop ? 650 : 550}
+                          renderAnnotationLayer={false}
+                        />
+                      )}
+                    </Document>
+                  </div>
+              )}
             </div>
 
+            {!isMusicXml(sheet) && (
             <div className="page_controls">
               <button
                 type="button"
@@ -242,6 +371,7 @@ function Sheet({
                 &gt;
               </button>
             </div>
+            )}
           </div>
 
           <div className="right_side_doc">
@@ -275,14 +405,14 @@ function Sheet({
 
               <div className="under_box">
                 <a
-                  href={pdfDownloadData.link}
-                  download={pdfDownloadData.name}
+                  href={fileDownloadData.link}
+                  download={fileDownloadData.name}
                   target="_blank"
                   rel="noopener noreferrer"
                 >
                   <button
                     className="remove_shadow"
-                    onClick={() => saveByteArray(sheet.sheet_name, pdf.data)}
+                    onClick={() => saveByteArray(sheet.sheet_name, fileData.data)}
                   >
                     Download
                   </button>
@@ -301,7 +431,7 @@ function Sheet({
                 >
                   <ModalContent
                     onClose={() => setEditModal(false)}
-                    uploadFile={pdf}
+                    uploadFile={fileData}
                     sheet={sheet}
                   />
                 </Modal>
