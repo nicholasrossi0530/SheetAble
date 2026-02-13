@@ -272,38 +272,48 @@ function Sheet({
                  <MusicXMLDisplay 
                     fileUrl={`/sheet/file/${safeComposerName}/${safeSheetName}${sheet.extension}`}
                     fileName={sheet.sheet_name}
-                    width={isDesktop ? 750 : 550}
+                    width={isDesktop ? 900 : window.innerWidth}
                  />
               ) : (
-                  <div ref={documentRef} style={isFullScreen ? { ...fullScreenStyles } : { position: 'relative' }}>
-                    <button 
-                      onClick={toggleFullScreen}
-                      style={isFullScreen ? {
-                        position: 'fixed',
-                        top: '20px',
-                        right: '20px',
-                        zIndex: 10000,
-                        background: 'rgba(0,0,0,0.5)',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: '5px',
-                        padding: '5px 10px',
-                        cursor: 'pointer'
-                      } : {
-                        position: 'absolute',
-                        top: '10px',
-                        right: '40px',
-                        zIndex: 10000,
-                        background: 'rgba(0,0,0,0.5)',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: '5px',
-                        padding: '5px 10px',
-                        cursor: 'pointer'
-                      }}
-                    >
-                      ⛶
-                    </button>
+                  <div ref={documentRef} style={isFullScreen ? { ...fullScreenStyles } : { 
+                      position: 'relative',
+                      height: window.innerHeight > 840 ? '85vh' : '65vh',
+                      overflowY: 'auto',
+                      overflowX: 'hidden'
+                  }}>
+                    <div style={{ position: 'sticky', top: 0, right: 0, width: '100%', pointerEvents: 'none', zIndex: 1000 }}>
+                      <button 
+                        onClick={toggleFullScreen}
+                        style={isFullScreen ? {
+                          position: 'fixed',
+                          top: '20px',
+                          right: '25px', 
+                          zIndex: 10000,
+                          background: 'rgba(0,0,0,0.5)',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '5px',
+                          padding: '5px 10px',
+                          cursor: 'pointer',
+                          pointerEvents: 'auto'
+                        } : {
+                          position: 'sticky',
+                          float: 'right',
+                          top: '15px',
+                          right: '15px',
+                          zIndex: 1000,
+                          background: 'rgba(0,0,0,0.5)',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '5px',
+                          padding: '5px 10px',
+                          cursor: 'pointer',
+                          pointerEvents: 'auto'
+                        }}
+                      >
+                        ⛶
+                      </button>
+                    </div>
                     <Document
                       file={fileData === undefined ? fileRequest() : fileData}
                       onLoadSuccess={onDocumentLoadSuccess}
@@ -340,38 +350,30 @@ function Sheet({
                           ))}
                         </div>
                       ) : (
-                        <Page 
-                          pageNumber={pageNumber} 
-                          width={isDesktop ? 650 : 550}
-                          renderAnnotationLayer={false}
-                        />
+                        Array.from(new Array(numPages), (el, index) => (
+                          <div 
+                              key={`page_${index + 1}`} 
+                              style={{ 
+                                  marginBottom: '20px',
+                                  display: 'flex', 
+                                  justifyContent: 'center', 
+                                  alignItems: 'center' 
+                              }}
+                          >
+                            <Page 
+                              pageNumber={index + 1} 
+                              width={isDesktop ? 900 : window.innerWidth * 0.95} 
+                              renderAnnotationLayer={false}
+                            />
+                          </div>
+                        ))
                       )}
                     </Document>
                   </div>
               )}
             </div>
 
-            {!isMusicXml(sheet) && (
-            <div className="page_controls">
-              <button
-                type="button"
-                disabled={pageNumber === 1}
-                onClick={previousPage}
-              >
-                &lt;
-              </button>
-              <span>
-                {pageNumber} of {numPages}
-              </span>
-              <button
-                type="button"
-                disabled={pageNumber === numPages}
-                onClick={nextPage}
-              >
-                &gt;
-              </button>
-            </div>
-            )}
+            {/* Pagination Controls Removed for Continuous Scroll */}
           </div>
 
           <div className="right_side_doc">

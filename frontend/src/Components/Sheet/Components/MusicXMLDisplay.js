@@ -30,9 +30,11 @@ const MusicXMLDisplay = ({ fileUrl, fileName, width }) => {
 
   useEffect(() => {
     let mounted = true;
+    // Capture the current ref value for cleanup
+    const currentContainer = containerRef.current;
 
     const setupOSMD = async () => {
-      if (!containerRef.current) return;
+      if (!currentContainer) return;
 
       try {
         setLoading(true);
@@ -47,7 +49,7 @@ const MusicXMLDisplay = ({ fileUrl, fileName, width }) => {
         
         // Initialize OSMD (only if not already initialized)
         if (!osmdRef.current) {
-          osmdRef.current = new OpenSheetMusicDisplay(containerRef.current, {
+          osmdRef.current = new OpenSheetMusicDisplay(currentContainer, {
             // autoResize: false, // Handle resize manually to debounce it
             backend: "canvas", // Canvas is much faster for large files
             drawingParameters: "compacttight", // Most optimized for performance
@@ -106,7 +108,7 @@ const MusicXMLDisplay = ({ fileUrl, fileName, width }) => {
           
           // Use our optimized render helper
           await renderOSMD(osmd);
-          
+
           setLoading(false);
         }
       } catch (err) {
@@ -123,11 +125,11 @@ const MusicXMLDisplay = ({ fileUrl, fileName, width }) => {
 
     return () => {
       mounted = false;
-      if (containerRef.current) {
-        containerRef.current.innerHTML = '';
+      if (currentContainer) {
+        currentContainer.innerHTML = '';
       }
     };
-  }, [fileUrl]);
+  }, [fileUrl, renderOSMD]);
 
 
   const [isFullScreen, setIsFullScreen] = useState(false);
@@ -142,18 +144,6 @@ const MusicXMLDisplay = ({ fileUrl, fileName, width }) => {
   const toggleFullScreen = () => {
     setIsFullScreen(!isFullScreen);
   };
- 
-  // Handle full-screen transitions specifically
-  useEffect(() => {
-    if (osmdRef.current && !loading) {
-       // Clear container to prevent layout jumps/stale renders
-       // containerRef.current.innerHTML = ''; // Actually OSMD handles this usually, but let's be safe. Wait, osmd.render() clears.
-       
-       // Force re-render with skeleton
-       osmdRef.current.Zoom = 0.5; 
-       renderOSMD(osmdRef.current);
-    }
-  }, [isFullScreen, loading]);
 
   const wrapperRef = useRef(null);
 
@@ -218,7 +208,7 @@ const MusicXMLDisplay = ({ fileUrl, fileName, width }) => {
       className="osmd-container-wrapper" 
       style={isFullScreen ? fullScreenStyles : defaultStyles}
     >
-      <div style={{ position: 'absolute', top: 0, right: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 1000 }}>
+      <div style={{ position: 'sticky', top: 0, right: 0, width: '100%', pointerEvents: 'none', zIndex: 1000 }}>
         <button 
           onClick={toggleFullScreen}
           style={isFullScreen ? {
@@ -267,7 +257,7 @@ const MusicXMLDisplay = ({ fileUrl, fileName, width }) => {
         <div 
           className="white-page-wrapper"
           style={{
-            width: isFullScreen ? (isMobile ? '100vw' : '900px') : (width || '750px'),
+            width: isMobile ? '100vw' : '900px', // Normalized width
             backgroundColor: 'white',
             boxShadow: isFullScreen ? '0 4px 15px rgba(0,0,0,0.3)' : 'none',
             padding: '0px 40px',
